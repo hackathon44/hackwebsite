@@ -2,7 +2,7 @@
 // src/app/page.tsx
 import Image from 'next/image'
 import Link from 'next/link'
-import Navbar from '@/components/Navbar'
+import Navbar from '../components/navbar'
 import { Calendar, Clock, Phone, Users } from 'lucide-react'
 
 export default function Home() {
