@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { supabase } from '../utils/supabase'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -34,6 +35,12 @@ export default function RegisterPage() {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+            role: formData.role
+          }
+        }
       })
 
       if (authError) throw authError
@@ -53,8 +60,14 @@ export default function RegisterPage() {
 
         if (profileError) throw profileError
 
-        // Registration successful
-        router.push('/login')
+        // Show success message and provide option to go to login
+        setError('Registration successful! Please check your email to confirm your account.')
+        setFormData({
+          email: '',
+          password: '',
+          fullName: '',
+          role: 'student'
+        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during registration')
@@ -75,11 +88,23 @@ export default function RegisterPage() {
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
+              <div className={`px-4 py-3 rounded ${
+                error.includes('successful') 
+                  ? 'bg-green-50 border border-green-400 text-green-700'
+                  : 'bg-red-50 border border-red-400 text-red-700'
+              }`}>
                 {error}
+                {error.includes('successful') && (
+                  <div className="mt-2">
+                    <Link href="/login" className="text-green-600 hover:text-green-500 font-medium">
+                      Go to login page →
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Rest of the form fields remain the same */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
@@ -151,6 +176,12 @@ export default function RegisterPage() {
               >
                 {loading ? 'Registering...' : 'Register'}
               </button>
+            </div>
+
+            <div className="text-sm text-center mt-4">
+              <Link href="/login" className="text-indigo-600 hover:text-indigo-500">
+                Already have an account? Sign in
+              </Link>
             </div>
           </form>
         </div>
