@@ -3,30 +3,30 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import Navbar from '../components/navbar'
-import { Calendar, Clock, Phone, Users } from 'lucide-react'
+import { BookOpen, Brain, FileText, Users } from 'lucide-react'
 
 export default function Home() {
   // Features section data
   const features = [
     {
-      icon: <Calendar className="h-6 w-6 text-blue-600" />,
-      title: 'Easy Scheduling',
-      description: 'Book appointments online 24/7 with our easy-to-use scheduling system'
+      icon: <BookOpen className="h-6 w-6 text-blue-600" />,
+      title: 'Smart Lesson Planning',
+      description: 'Generate AI-powered lesson plans customized to your curriculum'
     },
     {
       icon: <Users className="h-6 w-6 text-blue-600" />,
-      title: 'Expert Doctors',
-      description: 'Access to a network of experienced healthcare professionals'
+      title: 'Collaborative Teaching',
+      description: 'Share resources and collaborate with fellow educators in real time'
     },
     {
-      icon: <Clock className="h-6 w-6 text-blue-600" />,
-      title: '24/7 Support',
-      description: 'Round-the-clock medical support for emergencies'
+      icon: <Brain className="h-6 w-6 text-blue-600" />,
+      title: 'AI-Powered Insights',
+      description: 'Analyze student engagement and optimize teaching strategies'
     },
     {
-      icon: <Phone className="h-6 w-6 text-blue-600" />,
-      title: 'Telemedicine',
-      description: 'Virtual consultations from the comfort of your home'
+      icon: <FileText className="h-6 w-6 text-blue-600" />,
+      title: 'Automated Reports',
+      description: 'Generate performance reports with actionable insights for students'
     }
   ]
 
@@ -40,24 +40,24 @@ export default function Home() {
           <div className="flex flex-col lg:flex-row items-center justify-between">
             <div className="lg:w-1/2 mb-12 lg:mb-0">
               <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-                Your Health, Our Priority
+                Revolutionizing Education with AI
               </h1>
               <p className="text-lg text-gray-600 mb-8">
-                Experience world-class healthcare with our team of expert doctors. 
-                We provide comprehensive medical services to ensure your well-being.
+                Empower teachers with AI-driven tools for lesson planning, student engagement, 
+                and real-time performance insights. Simplify teaching and maximize impact.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
-                  href="/appointment"
+                  href="/dashboard"
                   className="bg-blue-600 text-white px-8 py-3 rounded-md text-center font-medium hover:bg-blue-700 transition-colors"
                 >
-                  Book Appointment
+                  Get Started
                 </Link>
                 <Link
-                  href="/services"
+                  href="/features"
                   className="bg-white text-blue-600 border border-blue-600 px-8 py-3 rounded-md text-center font-medium hover:bg-blue-50 transition-colors"
                 >
-                  Our Services
+                  Explore Features
                 </Link>
               </div>
             </div>
@@ -65,7 +65,7 @@ export default function Home() {
               <div className="relative h-64 sm:h-72 md:h-96 w-full">
                 <Image
                   src="/api/placeholder/800/600"
-                  alt="Healthcare professionals"
+                  alt="AI in education"
                   fill
                   className="object-cover rounded-lg shadow-xl"
                   priority
@@ -80,7 +80,7 @@ export default function Home() {
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Why Choose Us
+            Why Choose AI-Powered Teaching?
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
@@ -107,17 +107,17 @@ export default function Home() {
       <section className="bg-blue-600 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">
-            Ready to Get Started?
+            Join the Future of Education
           </h2>
           <p className="text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join thousands of satisfied patients who trust us with their healthcare needs.
-            Schedule your appointment today and take the first step towards better health.
+            Thousands of educators are transforming their teaching with AI-powered tools.
+            Get started today and revolutionize your classroom experience.
           </p>
           <Link
             href="/register"
             className="bg-white text-blue-600 px-8 py-3 rounded-md font-medium hover:bg-blue-50 transition-colors inline-block"
           >
-            Register Now
+            Sign Up Now
           </Link>
         </div>
       </section>

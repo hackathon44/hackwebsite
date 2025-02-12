@@ -1,132 +1,160 @@
-'use client';
-import AuthForm from '../context/authcontext';
-import { motion } from 'framer-motion';
+// app/register/page.tsx
+'use client'
+
+import { useState } from 'react'
+import { supabase } from '../utils/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function RegisterPage() {
-  // Animation variants for the floating elements
-  const floatingElementVariants = {
-    animate: {
-      y: [0, -15, 0],
-      transition: {
-        duration: 6,
-        repeat: Infinity,
-        ease: "easeInOut"
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    fullName: '',
+    role: 'student' as 'student' | 'teacher' | 'parent'
+  })
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Step 1: Sign up the user in auth.users
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      })
+
+      if (authError) throw authError
+
+      if (authData.user) {
+        // Step 2: Create the user profile
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert([
+            {
+              id: authData.user.id,
+              email: formData.email,
+              full_name: formData.fullName,
+              role: formData.role
+            }
+          ])
+
+        if (profileError) throw profileError
+
+        // Registration successful
+        router.push('/login')
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during registration')
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-zinc-900 to-gray-900 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 w-full h-full">
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.2, 0.3],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            repeatType: "reverse"
-          }}
-          className="absolute -top-24 -left-24 w-96 h-96 bg-purple-500/20 rounded-full filter blur-3xl"
-        />
-        <motion.div
-          animate={{
-            scale: [1, 1.1, 1],
-            opacity: [0.2, 0.3, 0.2],
-          }}
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            repeatType: "reverse"
-          }}
-          className="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-500/20 rounded-full filter blur-3xl"
-        />
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Create your account
+        </h2>
       </div>
 
-      {/* Decorative elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Top left decorative element */}
-        <motion.div
-          variants={floatingElementVariants}
-          animate="animate"
-          className="absolute top-10 left-10 w-24 h-24 rounded-full border border-zinc-700/50 hidden lg:block"
-        />
-        {/* Bottom right decorative element */}
-        <motion.div
-          variants={floatingElementVariants}
-          animate="animate"
-          initial={{ y: 20 }}
-          className="absolute bottom-10 right-10 w-32 h-32 rounded-full border border-zinc-700/50 hidden lg:block"
-        />
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                value={formData.password}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+                Full Name
+              </label>
+              <input
+                id="fullName"
+                name="fullName"
+                type="text"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                value={formData.fullName}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                Role
+              </label>
+              <select
+                id="role"
+                name="role"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                value={formData.role}
+                onChange={handleChange}
+              >
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="parent">Parent</option>
+              </select>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                {loading ? 'Registering...' : 'Register'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-
-      {/* Main content container */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10"
-      >
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          transition={{ duration: 0.2 }}
-          className="rounded-2xl bg-zinc-900/90 backdrop-blur-xl p-8 shadow-2xl 
-                     border border-zinc-800/50 transition-all duration-300
-                     hover:shadow-purple-500/10 hover:border-purple-500/50"
-        >
-          {/* Logo or branding section */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="mb-8"
-          >
-            <h1 className="text-center text-3xl font-bold bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent">
-              Create Account
-            </h1>
-            <p className="text-center text-zinc-400 mt-2">
-              Join our community and start creating amazing lessons
-            </p>
-          </motion.div>
-
-          {/* Auth form */}
-          <AuthForm view="sign-up" />
-
-          {/* Additional information */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="mt-6 text-center text-sm text-zinc-400"
-          >
-            By signing up, you agree to our{' '}
-            <a href="#" className="text-purple-400 hover:text-purple-300 underline">
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a href="#" className="text-purple-400 hover:text-purple-300 underline">
-              Privacy Policy
-            </a>
-          </motion.div>
-        </motion.div>
-
-        {/* Back to login link */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mt-4 text-center"
-        >
-          <a
-            href="/login"
-            className="text-zinc-400 hover:text-white transition-colors duration-200"
-          >
-            Already have an account? Sign in
-          </a>
-        </motion.div>
-      </motion.div>
     </div>
-  );
+  )
 }

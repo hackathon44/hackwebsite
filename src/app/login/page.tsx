@@ -1,104 +1,143 @@
-'use client';
-import AuthForm from '../context/authcontext';
-import { motion } from 'framer-motion';
+// app/login/page.tsx
+'use client'
+
+import { useState, useEffect } from 'react'
+import { supabase } from '../utils/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
-  // Animation variants for staggered children
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2
-      }
-    }
-  };
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  })
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
-  };
+  // Handle input changes in the form
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Step 1: Authenticate the user with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      })
+
+      if (authError) throw authError
+
+      if (authData.user) {
+        // Step 2: Fetch the user's profile to get their role
+        const { data: profileData, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', authData.user.id)
+          .single()
+
+        if (profileError) throw profileError
+
+        // Step 3: Redirect based on user role
+        switch (profileData.role) {
+          case 'student':
+            router.push('/studentdashboard')
+            break
+          case 'teacher':
+            router.push('/teacherdashboard')
+            break
+          case 'parent':
+            router.push('/parentdashboard')
+            break
+          default:
+            throw new Error('Invalid user role')
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during sign in')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-zinc-900 to-gray-900 px-6 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 w-full h-full">
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.2, 0.3],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            repeatType: "reverse"
-          }}
-          className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500 rounded-full filter blur-3xl opacity-30"
-        />
-        <motion.div
-          animate={{
-            scale: [1, 1.1, 1],
-            opacity: [0.2, 0.3, 0.2],
-          }}
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            repeatType: "reverse"
-          }}
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500 rounded-full filter blur-3xl opacity-20"
-        />
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Sign in to your account
+        </h2>
       </div>
 
-      {/* Main content */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="w-full max-w-md relative"
-      >
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          className="rounded-2xl bg-zinc-900/90 backdrop-blur-xl p-8 shadow-2xl 
-                     border border-zinc-800/50 transition-all duration-300
-                     hover:shadow-purple-500/10 hover:border-purple-500/50"
-        >
-          <motion.div variants={itemVariants}>
-            <h1 className="text-center text-3xl font-bold bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent">
-              LessonPlannerAI
-            </h1>
-          </motion.div>
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Display any error messages */}
+            {error && (
+              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                <span className="block sm:inline">{error}</span>
+              </div>
+            )}
 
-          <motion.p 
-            variants={itemVariants}
-            className="mt-2 text-center text-zinc-400"
-          >
-            Enter your login credentials
-          </motion.p>
-          
-          <motion.div 
-            variants={itemVariants}
-            className="mt-6"
-          >
-            <AuthForm />
-          </motion.div>
-          
-          <motion.div 
-            variants={itemVariants}
-            className="mt-6 text-center"
-          >
-            <p className="text-zinc-400">Not registered?</p>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="mt-2 text-white font-medium relative group"
-            >
-              <span className="relative z-10">Create an account</span>
-              <span className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-purple-500 to-blue-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
-            </motion.button>
-          </motion.div>
-        </motion.div>
-      </motion.div>
+            {/* Email input field */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <div className="mt-1">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  value={formData.email}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            {/* Password input field */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <div className="mt-1">
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  value={formData.password}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            {/* Submit button */}
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
