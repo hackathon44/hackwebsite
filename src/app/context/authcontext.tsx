@@ -1,39 +1,66 @@
-// contexts/AuthContext.tsx
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { 
+  createContext, 
+  useContext, 
+  useEffect, 
+  useState, 
+  ReactNode,
+  useCallback 
+} from 'react'
 import { supabase } from '../utils/supabase'
 import { useRouter } from 'next/navigation'
+import { User } from '@supabase/supabase-js'
 
-// Define the shape of our user profile data
-interface UserProfile {
+// Define authentication error types for better error handling
+export type AuthError = {
+  message: string
+  code?: string
+}
+
+// Define the shape of our user profile data with strict typing
+export interface UserProfile {
   id: string
   email: string
   full_name: string
   role: 'student' | 'teacher' | 'parent'
   created_at: string
   updated_at: string
+  avatar_url?: string
+  preferences?: Record<string, any>
 }
 
-// Define the shape of our auth context
-interface AuthContextType {
+// Define authentication state interface
+interface AuthState {
   user: UserProfile | null
   loading: boolean
-  signOut: () => Promise<void>
-  refreshUser: () => Promise<void>
+  error: AuthError | null
 }
 
-// Create the context
+// Define the shape of our auth context with complete typing
+interface AuthContextType extends AuthState {
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signUp: (email: string, password: string, userData: Partial<UserProfile>) => Promise<{ error: AuthError | null }>
+  signOut: () => Promise<void>
+  refreshUser: () => Promise<void>
+  updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: AuthError | null }>
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>
+}
+
+// Create the context with undefined initial value
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Create a provider component
+// Create a provider component with proper error handling and state management
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    loading: true,
+    error: null,
+  })
   const router = useRouter()
 
-  // Function to fetch user profile data
-  const fetchUserProfile = async (userId: string) => {
+  // Function to fetch user profile data with error handling
+  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
@@ -41,84 +68,240 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .single()
 
-      if (error) throw error
+      if (error) {
+        throw error
+      }
+
       return data as UserProfile
     } catch (error) {
       console.error('Error fetching user profile:', error)
+      setState(prev => ({ ...prev, error: { message: 'Failed to fetch user profile' } }))
       return null
     }
   }
 
-  // Function to refresh user data
-  const refreshUser = async () => {
+  // Enhanced user refresh function with error handling
+  const refreshUser = useCallback(async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) throw authError
+
       if (authUser) {
         const profile = await fetchUserProfile(authUser.id)
-        setUser(profile)
+        setState(prev => ({ ...prev, user: profile, error: null }))
       } else {
-        setUser(null)
+        setState(prev => ({ ...prev, user: null, error: null }))
       }
     } catch (error) {
       console.error('Error refreshing user:', error)
-      setUser(null)
+      setState(prev => ({ 
+        ...prev, 
+        user: null, 
+        error: { message: 'Failed to refresh user session' } 
+      }))
+    }
+  }, [])
+
+  // Sign in function with enhanced error handling
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) throw error
+
+      if (data.user) {
+        const profile = await fetchUserProfile(data.user.id)
+        setState(prev => ({ ...prev, user: profile, error: null }))
+        router.push('/dashboard')
+      }
+
+      return { error: null }
+    } catch (error: any) {
+      console.error('Sign in error:', error)
+      return { 
+        error: { 
+          message: error.message || 'Failed to sign in',
+          code: error.code 
+        } 
+      }
     }
   }
 
-  // Function to handle sign out
+  // Sign up function with profile creation
+  const signUp = async (
+    email: string, 
+    password: string, 
+    userData: Partial<UserProfile>
+  ) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+
+      if (error) throw error
+
+      if (data.user) {
+        // Create user profile
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert([
+            {
+              id: data.user.id,
+              email,
+              ...userData,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }
+          ])
+
+        if (profileError) throw profileError
+
+        const profile = await fetchUserProfile(data.user.id)
+        setState(prev => ({ ...prev, user: profile, error: null }))
+        router.push('/dashboard')
+      }
+
+      return { error: null }
+    } catch (error: any) {
+      console.error('Sign up error:', error)
+      return { 
+        error: { 
+          message: error.message || 'Failed to sign up',
+          code: error.code 
+        } 
+      }
+    }
+  }
+
+  // Sign out function with proper cleanup
   const signOut = async () => {
     try {
       await supabase.auth.signOut()
-      setUser(null)
+      setState(prev => ({ ...prev, user: null, error: null }))
       router.push('/login')
     } catch (error) {
       console.error('Error signing out:', error)
+      setState(prev => ({ 
+        ...prev, 
+        error: { message: 'Failed to sign out' } 
+      }))
     }
   }
 
-  // Initial auth state setup
+  // Update profile function
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    try {
+      if (!state.user?.id) throw new Error('No user logged in')
+
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', state.user.id)
+
+      if (error) throw error
+
+      await refreshUser()
+      return { error: null }
+    } catch (error: any) {
+      console.error('Update profile error:', error)
+      return { 
+        error: { 
+          message: error.message || 'Failed to update profile',
+          code: error.code 
+        } 
+      }
+    }
+  }
+
+  // Password reset function
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email)
+      if (error) throw error
+      return { error: null }
+    } catch (error: any) {
+      return { 
+        error: { 
+          message: error.message || 'Failed to send reset password email',
+          code: error.code 
+        } 
+      }
+    }
+  }
+
+  // Initial auth state setup with error handling
   useEffect(() => {
     const setupAuth = async () => {
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser()
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
         
+        if (authError) throw authError
+
         if (authUser) {
           const profile = await fetchUserProfile(authUser.id)
-          setUser(profile)
+          setState(prev => ({ ...prev, user: profile, loading: false, error: null }))
+        } else {
+          setState(prev => ({ ...prev, loading: false, error: null }))
         }
       } catch (error) {
         console.error('Error setting up auth:', error)
-      } finally {
-        setLoading(false)
+        setState(prev => ({ 
+          ...prev, 
+          loading: false, 
+          error: { message: 'Failed to initialize authentication' } 
+        }))
       }
     }
 
     setupAuth()
 
     // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const profile = await fetchUserProfile(session.user.id)
-        setUser(profile)
-      } else {
-        setUser(null)
-        router.push('/login')
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user.id)
+          setState(prev => ({ ...prev, user: profile, error: null }))
+        } else {
+          setState(prev => ({ ...prev, user: null, error: null }))
+          if (event === 'SIGNED_OUT') {
+            router.push('/login')
+          }
+        }
       }
-    })
+    )
 
     return () => {
       subscription.unsubscribe()
     }
   }, [router])
 
+  // Provide auth context value
+  const value: AuthContextType = {
+    ...state,
+    signIn,
+    signUp,
+    signOut,
+    refreshUser,
+    updateProfile,
+    resetPassword,
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, signOut, refreshUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-// Custom hook to use the auth context
+// Custom hook to use the auth context with proper error checking
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
