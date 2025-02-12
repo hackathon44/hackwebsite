@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { AuthError } from '@supabase/supabase-js';
 import { motion } from 'framer-motion';
 
@@ -59,20 +58,6 @@ export default function AuthForm({ view }: { view: 'sign-in' | 'sign-up' }) {
       if (error) throw error;
       router.push('/dashboard');
       router.refresh();
-    } catch (error) {
-      if (error instanceof AuthError) {
-        setStatus({ loading: false, error: error.message });
-      }
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${location.origin}/auth/callback` }
-      });
-      if (error) throw error;
     } catch (error) {
       if (error instanceof AuthError) {
         setStatus({ loading: false, error: error.message });
@@ -176,7 +161,7 @@ export default function AuthForm({ view }: { view: 'sign-in' | 'sign-up' }) {
           />
         </motion.div>
 
-        <motion.div variants={itemVariants} className="space-y-4 pt-2">
+        <motion.div variants={itemVariants} className="pt-2">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -194,25 +179,6 @@ export default function AuthForm({ view }: { view: 'sign-in' | 'sign-up' }) {
             ) : (
               view === 'sign-in' ? 'Sign in' : 'Sign up'
             )}
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            type="button"
-            onClick={handleGoogleSignIn}
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 
-                     font-medium text-white hover:bg-zinc-800/50 transition-all duration-300
-                     flex items-center justify-center gap-3"
-          >
-            <Image
-              src="/google.svg"
-              alt="Google"
-              width={20}
-              height={20}
-              className="opacity-90"
-            />
-            Continue with Google
           </motion.button>
         </motion.div>
       </motion.form>
