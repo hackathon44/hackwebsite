@@ -9,6 +9,7 @@ import Link from 'next/link'
 import StudentTests from '../../components/studentdashboard/testattempt'
 import { motion } from 'framer-motion'
 import StudentAnalytics from '../../components/studentdashboard/chart'
+import StudentFeedback from '../../components/studentdashboard/feedback';
 
 // Types for our analytics data
 interface TopicPerformance {
@@ -49,15 +50,15 @@ export default function StudentDashboard() {
       description: 'Your learning overview'
     },
     { 
-      name: 'Courses', 
-      href: '/courses', 
+      name: 'AI Practice', 
+      href: '/practice', 
       icon: BookOpen,
       badge: '5 active',
       description: 'Enrolled courses'
     },
     { 
-      name: 'AI Recommendations', 
-      href: '/recommendations', 
+      name: 'AI Learning', 
+      href: '/learning', 
       icon: Brain,
       badge: 'New',
       description: 'Personalized learning paths'
@@ -287,6 +288,7 @@ export default function StudentDashboard() {
           </div>
         </Card>
         <StudentAnalytics/>
+        <StudentFeedback/>
       </main>
     </div>
   )
