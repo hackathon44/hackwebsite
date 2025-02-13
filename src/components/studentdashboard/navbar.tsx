@@ -4,7 +4,19 @@ import React, { useState } from 'react';
 import { Menu, X, Sun, Moon, Layout, BookOpen, Brain } from 'lucide-react';
 import Link from 'next/link';
 
-const Navbar = ({ user, signOut }) => {
+
+interface User {
+    full_name?: string;
+    email?: string;
+    role?: string;
+  }
+  
+  interface NavbarProps {
+    user: User | null;
+    signOut: () => Promise<void> | void;
+  }
+
+  const Navbar: React.FC<NavbarProps> = ({ user, signOut }) => {
   // State for mobile menu and theme toggle
   const [isOpen, setIsOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
