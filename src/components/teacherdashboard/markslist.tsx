@@ -2,153 +2,206 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../app/utils/supabase'
+import { useAuth } from '../../app/context/authcontext'
+
+// Define TypeScript interfaces for our data structures
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string
+  role: 'student' | 'teacher' | 'parent'
+  created_at: string
+  updated_at: string
+}
+
+interface Test {
+  id: string
+  name: string
+  total_marks: number
+  teacher_id: string
+}
+
+interface Question {
+  id: string
+  test_id: string
+  question_text: string
+  marks: number
+  topic: string
+}
+
+interface StudentAttempt {
+  id: string
+  student_id: string
+  test_id: string
+  question_id: string
+  is_correct: boolean
+  marks_obtained: number
+  selected_option: string
+  attempt_time: string
+}
+
+interface TestResult {
+  testId: string
+  testName: string
+  totalMarks: number
+  marksObtained: number
+  questionsAttempted: number
+  topicPerformance: {
+    [key: string]: {
+      total: number
+      correct: number
+      percentage: number
+    }
+  }
+}
 
 interface StudentAnalytics {
-  studentId: string
-  studentName: string
-  testResults: {
-    testId: string
-    testName: string
-    totalMarks: number
-    marksObtained: number
-    topics: {
-      [key: string]: {
-        total: number
-        correct: number
-        percentage: number
-      }
-    }
-  }[]
+  testResults: TestResult[]
   weakTopics: string[]
   strongTopics: string[]
   averageScore: number
 }
 
-interface Feedback {
-  feedbackId: number
-  studentId: string
-  teacherId: string
-  feedbackText: string
-  acknowledged: boolean
-  createdAt: string
-}
-
 export default function StudentPerformanceAnalytics() {
-  const [analytics, setAnalytics] = useState<StudentAnalytics[]>([])
+  const { user } = useAuth()
+  const [students, setStudents] = useState<UserProfile[]>([])
+  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
+  const [analytics, setAnalytics] = useState<StudentAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [newFeedback, setNewFeedback] = useState<{ [key: string]: string }>({})
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState('')
+  const [submittingFeedback, setSubmittingFeedback] = useState(false)
 
   useEffect(() => {
-    fetchAnalytics()
+    fetchStudents()
   }, [])
 
-  const fetchAnalytics = async () => {
+  useEffect(() => {
+    if (selectedStudent) {
+      fetchAnalytics(selectedStudent)
+    }
+  }, [selectedStudent])
+
+  const fetchStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('role', 'student')
+        .order('full_name')
+
+      if (error) throw error
+      setStudents(data)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const fetchAnalytics = async (studentId: string) => {
     try {
       setLoading(true)
-      
-      // Fetch all student attempts with related data
-      const { data: attempts, error: attemptsError } = await supabase
-        .from('student_attempts')
-        .select(`
-          *,
-          students:student_id (*),
-          tests:test_id (*),
-          questions:question_id (*)
-        `)
+      setError(null)
 
-      if (attemptsError) throw attemptsError
+      // Fetch all required data in parallel
+      const [testsResponse, questionsResponse, attemptsResponse] = await Promise.all([
+        supabase.from('tests').select('*'),
+        supabase.from('questions').select('*'),
+        supabase.from('student_attempts')
+          .select('*')
+          .eq('student_id', studentId)
+      ])
 
-      // Process the data to calculate analytics
-      const analyticsMap = new Map<string, StudentAnalytics>()
+      if (testsResponse.error) throw testsResponse.error
+      if (questionsResponse.error) throw questionsResponse.error
+      if (attemptsResponse.error) throw attemptsResponse.error
 
-      attempts?.forEach((attempt) => {
-        const studentId = attempt.student_id
-        const testId = attempt.test_id
-        const question = attempt.questions
-        const test = attempt.tests
+      const tests = testsResponse.data as Test[]
+      const questions = questionsResponse.data as Question[]
+      const attempts = attemptsResponse.data as StudentAttempt[]
 
-        if (!analyticsMap.has(studentId)) {
-          analyticsMap.set(studentId, {
-            studentId,
-            studentName: attempt.students.full_name,
-            testResults: [],
-            weakTopics: [],
-            strongTopics: [],
-            averageScore: 0
-          })
-        }
+      // Create lookup maps for efficient data access
+      const questionMap = new Map(questions.map(q => [q.id, q]))
+      const testResults = new Map<string, TestResult>()
 
-        const studentData = analyticsMap.get(studentId)!
-        let testResult = studentData.testResults.find(t => t.testId === testId)
+      // Initialize test results
+      tests.forEach(test => {
+        testResults.set(test.id, {
+          testId: test.id,
+          testName: test.name,
+          totalMarks: test.total_marks,
+          marksObtained: 0,
+          questionsAttempted: 0,
+          topicPerformance: {}
+        })
+      })
 
-        if (!testResult) {
-          testResult = {
-            testId,
-            testName: test.name,
-            totalMarks: test.total_marks,
-            marksObtained: 0,
-            topics: {}
-          }
-          studentData.testResults.push(testResult)
-        }
+      // Process attempts and calculate scores
+      attempts.forEach(attempt => {
+        const question = questionMap.get(attempt.question_id)
+        if (!question) return
 
-        // Update topic statistics
-        if (!testResult.topics[question.topic]) {
-          testResult.topics[question.topic] = {
+        const testResult = testResults.get(attempt.test_id)
+        if (!testResult) return
+
+        testResult.questionsAttempted++
+        testResult.marksObtained += attempt.marks_obtained
+
+        // Update topic performance
+        const topic = question.topic
+        if (!testResult.topicPerformance[topic]) {
+          testResult.topicPerformance[topic] = {
             total: 0,
             correct: 0,
             percentage: 0
           }
         }
 
-        const topicStats = testResult.topics[question.topic]
+        const topicStats = testResult.topicPerformance[topic]
         topicStats.total += question.marks
         if (attempt.is_correct) {
-          topicStats.correct += question.marks
-          testResult.marksObtained += attempt.marks_obtained
+          topicStats.correct += attempt.marks_obtained
         }
         topicStats.percentage = (topicStats.correct / topicStats.total) * 100
       })
 
-      // Calculate weak and strong topics
-      analyticsMap.forEach(student => {
-        const topicPerformance: { [key: string]: number[] } = {}
-        
-        student.testResults.forEach(test => {
-          Object.entries(test.topics).forEach(([topic, stats]) => {
-            if (!topicPerformance[topic]) {
-              topicPerformance[topic] = []
-            }
-            topicPerformance[topic].push(stats.percentage)
-          })
+      // Calculate topic strengths
+      const topicPerformances: { [key: string]: number[] } = {}
+      testResults.forEach(result => {
+        Object.entries(result.topicPerformance).forEach(([topic, stats]) => {
+          if (!topicPerformances[topic]) {
+            topicPerformances[topic] = []
+          }
+          topicPerformances[topic].push(stats.percentage)
         })
-
-        // Calculate average performance per topic
-        const avgTopicPerformance = Object.entries(topicPerformance).map(([topic, percentages]) => ({
-          topic,
-          average: percentages.reduce((a, b) => a + b, 0) / percentages.length
-        }))
-
-        // Sort topics by performance
-        avgTopicPerformance.sort((a, b) => b.average - a.average)
-
-        student.strongTopics = avgTopicPerformance
-          .filter(t => t.average >= 70)
-          .map(t => t.topic)
-        
-        student.weakTopics = avgTopicPerformance
-          .filter(t => t.average < 50)
-          .map(t => t.topic)
-
-        // Calculate overall average score
-        student.averageScore = student.testResults.reduce((acc, test) => 
-          acc + (test.marksObtained / test.totalMarks) * 100, 0
-        ) / student.testResults.length
       })
 
-      setAnalytics(Array.from(analyticsMap.values()))
+      const avgTopicPerformance = Object.entries(topicPerformances).map(([topic, scores]) => ({
+        topic,
+        average: scores.reduce((a, b) => a + b, 0) / scores.length
+      }))
+
+      const strongTopics = avgTopicPerformance
+        .filter(t => t.average >= 70)
+        .map(t => t.topic)
+
+      const weakTopics = avgTopicPerformance
+        .filter(t => t.average < 50)
+        .map(t => t.topic)
+
+      // Calculate overall average
+      const results = Array.from(testResults.values())
+      const averageScore = results.length > 0
+        ? results.reduce((acc, test) => 
+            acc + (test.marksObtained / test.totalMarks) * 100, 0
+          ) / results.length
+        : 0
+
+      setAnalytics({
+        testResults: results,
+        weakTopics,
+        strongTopics,
+        averageScore
+      })
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -156,122 +209,177 @@ export default function StudentPerformanceAnalytics() {
     }
   }
 
-  const submitFeedback = async (studentId: string) => {
+  const submitFeedback = async () => {
+    if (!selectedStudent || !user?.id || !feedback.trim()) return
+    
     try {
-      const { error } = await supabase
+      setSubmittingFeedback(true)
+      
+      const { error: feedbackError } = await supabase
         .from('feedback')
         .insert({
-          student_id: studentId,
-          teacher_id: supabase.auth.getUser(),
-          feedback_text: newFeedback[studentId],
+          student_id: selectedStudent,
+          teacher_id: user.id,
+          feedback_text: feedback,
           acknowledged: false
         })
 
-      if (error) throw error
+      if (feedbackError) throw feedbackError
 
-      // Clear the feedback input
-      setNewFeedback(prev => ({
-        ...prev,
-        [studentId]: ''
-      }))
-
-      // Show success message or update UI
+      setFeedback('')
     } catch (err: any) {
       setError(err.message)
+    } finally {
+      setSubmittingFeedback(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 text-red-700 rounded-lg">
-        Error: {error}
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-8">
-      <h2 className="text-2xl font-bold text-black">Student Performance Analytics</h2>
-      
-      {analytics.map((student) => (
-        <div key={student.studentId} className="bg-white p-6 rounded-lg shadow-lg">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold text-black">
-              {student.studentName}
-            </h3>
-            <span className="text-lg font-medium text-black">
-              Overall Average: {student.averageScore.toFixed(1)}%
-            </span>
-          </div>
-
-          {/* Topic Analysis */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <h4 className="font-medium text-black mb-2">Strong Topics:</h4>
-              <ul className="list-disc list-inside text-black">
-                {student.strongTopics.map(topic => (
-                  <li key={topic}>{topic}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium text-black mb-2">Topics Needing Improvement:</h4>
-              <ul className="list-disc list-inside text-black">
-                {student.weakTopics.map(topic => (
-                  <li key={topic}>{topic}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Test Results */}
-          <div className="mb-4">
-            <h4 className="font-medium text-black mb-2">Test Results:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {student.testResults.map((test) => (
-                <div key={test.testId} className="border rounded p-3">
-                  <p className="font-medium text-black">{test.testName}</p>
-                  <p className="text-black">
-                    Score: {test.marksObtained}/{test.totalMarks} (
-                    {((test.marksObtained / test.totalMarks) * 100).toFixed(1)}%)
-                  </p>
-                </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Student Performance Analytics</h1>
+          
+          {/* Student Selection */}
+          <div className="mt-6 p-6 bg-white rounded-xl shadow-md">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Student</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {students.map((student) => (
+                <button
+                  key={student.id}
+                  onClick={() => setSelectedStudent(student.id)}
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 
+                    ${selectedStudent === student.id 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'}`}
+                >
+                  <p className="font-medium text-gray-900">{student.full_name}</p>
+                  <p className="text-sm text-gray-500">{student.email}</p>
+                </button>
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Feedback Section */}
-          <div className="mt-4">
-            <h4 className="font-medium text-black mb-2">Provide Feedback:</h4>
-            <div className="flex gap-4">
-              <textarea
-                value={newFeedback[student.studentId] || ''}
-                onChange={(e) => setNewFeedback(prev => ({
-                  ...prev,
-                  [student.studentId]: e.target.value
-                }))}
-                className="flex-1 border rounded p-2 text-black"
-                placeholder="Enter feedback for student..."
-                rows={2}
-              />
-              <button
-                onClick={() => submitFeedback(student.studentId)}
-                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
-              >
-                Submit Feedback
-              </button>
+        {loading && (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8">
+            <p className="text-red-700">{error}</p>
+          </div>
+        )}
+
+        {analytics && selectedStudent && (
+          <div className="space-y-8">
+            {/* Performance Overview */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Performance Overview</h2>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div>
+                    <div className="bg-blue-50 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Overall Average</h3>
+                      <p className="text-4xl font-bold text-blue-600">
+                        {analytics.averageScore.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Strong Topics</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {analytics.strongTopics.map(topic => (
+                          <span key={topic} 
+                            className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Areas for Improvement</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {analytics.weakTopics.map(topic => (
+                          <span key={topic} 
+                            className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Test Results */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Test Results</h2>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {analytics.testResults.map((test) => (
+                    <div key={test.testId} 
+                      className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">{test.testName}</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Score</span>
+                          <span className="font-medium">
+                            {test.marksObtained}/{test.totalMarks}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Percentage</span>
+                          <span className="font-medium">
+                            {((test.marksObtained / test.totalMarks) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Questions Attempted</span>
+                          <span className="font-medium">{test.questionsAttempted}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Feedback Section */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Provide Feedback</h2>
+                <div className="space-y-4">
+                  <textarea
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    className="w-full min-h-[120px] p-4 border border-gray-300 rounded-lg 
+                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none
+                      resize-none"
+                    placeholder="Enter your feedback for the student..."
+                  />
+                  <button
+                    onClick={submitFeedback}
+                    disabled={submittingFeedback || !feedback.trim()}
+                    className={`px-6 py-3 rounded-lg text-white font-medium transition-colors
+                      ${submittingFeedback || !feedback.trim()
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        )}
+      </div>
     </div>
   )
 }
