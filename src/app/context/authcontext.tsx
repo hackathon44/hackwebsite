@@ -10,12 +10,19 @@ import {
 } from 'react'
 import { supabase } from '../utils/supabase'
 import { useRouter } from 'next/navigation'
-import { User } from '@supabase/supabase-js'
+import { PostgrestError } from '@supabase/supabase-js'
 
 // Define authentication error types for better error handling
 export type AuthError = {
   message: string
   code?: string
+}
+
+// Define custom error types to replace 'any'
+type SupabaseAuthError = {
+  message: string
+  code?: string
+  status?: number
 }
 
 // Define the shape of our user profile data with strict typing
@@ -27,7 +34,7 @@ export interface UserProfile {
   created_at: string
   updated_at: string
   avatar_url?: string
-  preferences?: Record<string, any>
+  preferences?: Record<string, unknown>
 }
 
 // Define authentication state interface
@@ -36,9 +43,6 @@ interface AuthState {
   loading: boolean
   error: AuthError | null
 }
-
-
-
 
 // Define the shape of our auth context with complete typing
 interface AuthContextType extends AuthState {
@@ -52,6 +56,12 @@ interface AuthContextType extends AuthState {
 
 // Create the context with undefined initial value
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+// Helper function to handle errors
+const handleError = (error: SupabaseAuthError | PostgrestError): AuthError => ({
+  message: error.message || 'An error occurred',
+  code: 'code' in error ? error.code : undefined
+})
 
 // Create a provider component with proper error handling and state management
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -77,8 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return data as UserProfile
     } catch (error) {
-      console.error('Error fetching user profile:', error)
-      setState(prev => ({ ...prev, error: { message: 'Failed to fetch user profile' } }))
+      if (error instanceof Error) {
+        console.error('Error fetching user profile:', error)
+        setState(prev => ({ ...prev, error: { message: error.message } }))
+      }
       return null
     }
   }
@@ -97,12 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState(prev => ({ ...prev, user: null, error: null }))
       }
     } catch (error) {
-      console.error('Error refreshing user:', error)
-      setState(prev => ({ 
-        ...prev, 
-        user: null, 
-        error: { message: 'Failed to refresh user session' } 
-      }))
+      if (error instanceof Error) {
+        console.error('Error refreshing user:', error)
+        setState(prev => ({ 
+          ...prev, 
+          user: null, 
+          error: { message: error.message } 
+        }))
+      }
     }
   }, [])
 
@@ -123,13 +137,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { error: null }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Sign in error:', error)
       return { 
-        error: { 
-          message: error.message || 'Failed to sign in',
-          code: error.code 
-        } 
+        error: handleError(error as SupabaseAuthError)
       }
     }
   }
@@ -170,13 +181,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { error: null }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Sign up error:', error)
       return { 
-        error: { 
-          message: error.message || 'Failed to sign up',
-          code: error.code 
-        } 
+        error: handleError(error as SupabaseAuthError)
       }
     }
   }
@@ -188,11 +196,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, user: null, error: null }))
       router.push('/login')
     } catch (error) {
-      console.error('Error signing out:', error)
-      setState(prev => ({ 
-        ...prev, 
-        error: { message: 'Failed to sign out' } 
-      }))
+      if (error instanceof Error) {
+        console.error('Error signing out:', error)
+        setState(prev => ({ 
+          ...prev, 
+          error: { message: error.message } 
+        }))
+      }
     }
   }
 
@@ -213,13 +223,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await refreshUser()
       return { error: null }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Update profile error:', error)
       return { 
-        error: { 
-          message: error.message || 'Failed to update profile',
-          code: error.code 
-        } 
+        error: handleError(error as SupabaseAuthError)
       }
     }
   }
@@ -230,12 +237,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.resetPasswordForEmail(email)
       if (error) throw error
       return { error: null }
-    } catch (error: any) {
+    } catch (error) {
       return { 
-        error: { 
-          message: error.message || 'Failed to send reset password email',
-          code: error.code 
-        } 
+        error: handleError(error as SupabaseAuthError)
       }
     }
   }
@@ -255,12 +259,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setState(prev => ({ ...prev, loading: false, error: null }))
         }
       } catch (error) {
-        console.error('Error setting up auth:', error)
-        setState(prev => ({ 
-          ...prev, 
-          loading: false, 
-          error: { message: 'Failed to initialize authentication' } 
-        }))
+        if (error instanceof Error) {
+          console.error('Error setting up auth:', error)
+          setState(prev => ({ 
+            ...prev, 
+            loading: false, 
+            error: { message: error.message } 
+          }))
+        }
       }
     }
 
