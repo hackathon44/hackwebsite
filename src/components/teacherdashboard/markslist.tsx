@@ -3,6 +3,13 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../app/utils/supabase'
 import { useAuth } from '../../app/context/authcontext'
+import type { PostgrestError } from '@supabase/supabase-js'
+
+// Enhanced error handling with discriminated union types
+type AppError = 
+  | { type: 'database'; error: PostgrestError }
+  | { type: 'validation'; message: string }
+  | { type: 'network'; message: string }
 
 // Define TypeScript interfaces for our data structures
 interface UserProfile {
@@ -62,7 +69,7 @@ interface StudentAnalytics {
   averageScore: number
 }
 
-export default function StudentPerformanceAnalytics() {
+const StudentPerformanceAnalytics: React.FC = () => {
   const { user } = useAuth()
   const [students, setStudents] = useState<UserProfile[]>([])
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
@@ -71,6 +78,19 @@ export default function StudentPerformanceAnalytics() {
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
+
+  // Helper function to handle errors
+  const handleError = (error: AppError): string => {
+    switch (error.type) {
+      case 'database':
+        return `Database error: ${error.error.message}`
+      case 'validation':
+      case 'network':
+        return error.message
+      default:
+        return 'An unexpected error occurred'
+    }
+  }
 
   useEffect(() => {
     fetchStudents()
@@ -84,16 +104,20 @@ export default function StudentPerformanceAnalytics() {
 
   const fetchStudents = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error: dbError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('role', 'student')
         .order('full_name')
 
-      if (error) throw error
+      if (dbError) {
+        throw { type: 'database', error: dbError } as AppError
+      }
+
       setStudents(data)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (error) {
+      const appError = error as AppError
+      setError(handleError(appError))
     }
   }
 
@@ -111,9 +135,16 @@ export default function StudentPerformanceAnalytics() {
           .eq('student_id', studentId)
       ])
 
-      if (testsResponse.error) throw testsResponse.error
-      if (questionsResponse.error) throw questionsResponse.error
-      if (attemptsResponse.error) throw attemptsResponse.error
+      // Handle potential database errors
+      if (testsResponse.error) {
+        throw { type: 'database', error: testsResponse.error } as AppError
+      }
+      if (questionsResponse.error) {
+        throw { type: 'database', error: questionsResponse.error } as AppError
+      }
+      if (attemptsResponse.error) {
+        throw { type: 'database', error: attemptsResponse.error } as AppError
+      }
 
       const tests = testsResponse.data as Test[]
       const questions = questionsResponse.data as Question[]
@@ -202,15 +233,18 @@ export default function StudentPerformanceAnalytics() {
         strongTopics,
         averageScore
       })
-    } catch (err: any) {
-      setError(err.message)
+    } catch (error) {
+      const appError = error as AppError
+      setError(handleError(appError))
     } finally {
       setLoading(false)
     }
   }
 
   const submitFeedback = async () => {
-    if (!selectedStudent || !user?.id || !feedback.trim()) return
+    if (!selectedStudent || !user?.id || !feedback.trim()) {
+      throw { type: 'validation', message: 'Invalid feedback submission data' } as AppError
+    }
     
     try {
       setSubmittingFeedback(true)
@@ -224,11 +258,14 @@ export default function StudentPerformanceAnalytics() {
           acknowledged: false
         })
 
-      if (feedbackError) throw feedbackError
+      if (feedbackError) {
+        throw { type: 'database', error: feedbackError } as AppError
+      }
 
       setFeedback('')
-    } catch (err: any) {
-      setError(err.message)
+    } catch (error) {
+      const appError = error as AppError
+      setError(handleError(appError))
     } finally {
       setSubmittingFeedback(false)
     }
@@ -332,6 +369,12 @@ export default function StudentPerformanceAnalytics() {
                           <span className="text-gray-600">Score</span>
                           <span className="font-medium">
                             {test.marksObtained}/{test.totalMarks}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Percentage</span>
+                          <span className="font-medium">
+                            {((test.marksObtained / test.totalMarks) * 100).toFixed(1)}%
                           </span>
                         </div>
                         <div className="flex justify-between items-center">

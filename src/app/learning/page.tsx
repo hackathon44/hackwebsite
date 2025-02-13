@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAuth } from '../context/authcontext'
 import { supabase } from '../utils/supabase'
 import {
@@ -43,7 +43,8 @@ export default function LearningPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const topics = ['DSA', 'Fullstack', 'AI', 'Operating System']
+  // Move topics array into useMemo to prevent recreation on each render
+  const topics = useMemo(() => ['DSA', 'Fullstack', 'AI', 'Operating System'], [])
 
   const fetchData = useCallback(async () => {
     if (!user?.id) {
@@ -53,8 +54,6 @@ export default function LearningPage() {
     }
 
     try {
-      console.log('Fetching data for user:', user.id)
-
       const { data: questionsData, error: questionsError } = await supabase
         .from('ai_questions')
         .select('question_id, topic')
@@ -159,7 +158,7 @@ export default function LearningPage() {
     } finally {
       setLoading(false)
     }
-  }, [user?.id, topics])
+  }, [user?.id, topics]) // Now topics is stable and won't cause unnecessary rerenders
 
   useEffect(() => {
     fetchData()

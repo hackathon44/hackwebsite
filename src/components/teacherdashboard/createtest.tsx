@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../app/context/authcontext'
 import { supabase } from '../../app/utils/supabase'
+import type { PostgrestError } from '@supabase/supabase-js'
 
 // Define interfaces for our form data
 interface QuestionForm {
@@ -22,6 +23,12 @@ interface TestForm {
   questions: QuestionForm[]
 }
 
+// Custom error type for application-specific errors
+interface ApplicationError {
+  message: string
+  type: 'validation' | 'auth' | 'database'
+}
+
 const initialQuestionState: QuestionForm = {
   question_text: '',
   option_a: '',
@@ -33,7 +40,7 @@ const initialQuestionState: QuestionForm = {
   topic: ''
 }
 
-export default function TestCreation() {
+const TestCreation: React.FC = () => {
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [currentStep, setCurrentStep] = useState<'test' | 'questions'>('test')
@@ -48,7 +55,7 @@ export default function TestCreation() {
   
   const [currentQuestion, setCurrentQuestion] = useState<QuestionForm>(initialQuestionState)
 
-  const handleTestSubmit = async (e: React.FormEvent) => {
+  const handleTestSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.id) {
       setError('You must be logged in to create a test')
@@ -58,10 +65,24 @@ export default function TestCreation() {
     setCurrentStep('questions')
   }
 
+  const validateQuestion = (question: QuestionForm): ApplicationError | null => {
+    if (!question.question_text.trim()) {
+      return { message: 'Question text is required', type: 'validation' }
+    }
+    if (!question.topic.trim()) {
+      return { message: 'Topic is required', type: 'validation' }
+    }
+    if ([question.option_a, question.option_b, question.option_c, question.option_d]
+        .some(option => !option.trim())) {
+      return { message: 'All options must be filled', type: 'validation' }
+    }
+    return null
+  }
+
   const handleQuestionAdd = () => {
-    // Validate current question
-    if (!currentQuestion.question_text || !currentQuestion.topic) {
-      setError('Please fill in all required fields')
+    const validationError = validateQuestion(currentQuestion)
+    if (validationError) {
+      setError(validationError.message)
       return
     }
 
@@ -82,11 +103,17 @@ export default function TestCreation() {
       setError(null)
 
       if (!user?.id) {
-        throw new Error('You must be logged in to create a test')
+        throw { 
+          message: 'You must be logged in to create a test',
+          type: 'auth'
+        } as ApplicationError
       }
 
       if (testForm.questions.length === 0) {
-        throw new Error('Please add at least one question')
+        throw { 
+          message: 'Please add at least one question',
+          type: 'validation'
+        } as ApplicationError
       }
 
       // Create test
@@ -100,7 +127,9 @@ export default function TestCreation() {
         .select()
         .single()
 
-      if (testError) throw testError
+      if (testError) {
+        throw testError
+      }
 
       // Create questions
       const questionsToInsert = testForm.questions.map(q => ({
@@ -113,15 +142,26 @@ export default function TestCreation() {
         .from('questions')
         .insert(questionsToInsert)
 
-      if (questionsError) throw questionsError
+      if (questionsError) {
+        throw questionsError
+      }
 
       setSuccess('Test created successfully!')
       // Reset form
       setTestForm({ name: '', total_marks: 0, questions: [] })
       setCurrentStep('test')
       
-    } catch (err: any) {
-      setError(err.message)
+    } catch (error) {
+      // Handle different types of errors
+      if ((error as ApplicationError).type) {
+        const appError = error as ApplicationError
+        setError(appError.message)
+      } else if ((error as PostgrestError).code) {
+        const pgError = error as PostgrestError
+        setError(`Database error: ${pgError.message}`)
+      } else {
+        setError('An unexpected error occurred')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -297,3 +337,5 @@ export default function TestCreation() {
     </div>
   )
 }
+
+export default TestCreation

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../app/context/authcontext'
 import { supabase } from '../../app/utils/supabase'
+import type { PostgrestError } from '@supabase/supabase-js'
 
 interface Question {
   id: string
@@ -26,7 +27,7 @@ interface Test {
   questions?: Question[]
 }
 
-export default function ExistingTests() {
+const ExistingTests: React.FC = () => {
   const { user } = useAuth()
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,24 +37,23 @@ export default function ExistingTests() {
   const [selectedTopic, setSelectedTopic] = useState<string>('all')
   const [topics, setTopics] = useState<string[]>([])
 
-  useEffect(() => {
-    if (user?.id) {
-      fetchTests()
-    }
-  }, [user])
+  const fetchTests = useCallback(async () => {
+    if (!user?.id) return
 
-  const fetchTests = async () => {
     try {
       setLoading(true)
+      setError(null)
       
       // Fetch tests
       const { data: testsData, error: testsError } = await supabase
         .from('tests')
         .select('*')
-        .eq('teacher_id', user?.id)
+        .eq('teacher_id', user.id)
         .order('created_at', { ascending: false })
 
-      if (testsError) throw testsError
+      if (testsError) {
+        throw testsError
+      }
 
       // Fetch questions for each test
       const testsWithQuestions = await Promise.all(
@@ -64,7 +64,9 @@ export default function ExistingTests() {
             .eq('test_id', test.id)
             .order('created_at', { ascending: true })
 
-          if (questionsError) throw questionsError
+          if (questionsError) {
+            throw questionsError
+          }
 
           // Collect unique topics
           const testTopics = [...new Set(questions.map((q: Question) => q.topic))]
@@ -78,11 +80,27 @@ export default function ExistingTests() {
       )
 
       setTests(testsWithQuestions)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (error) {
+      const pgError = error as PostgrestError
+      setError(pgError.message || 'An error occurred while fetching tests')
+      console.error('Error fetching tests:', pgError)
     } finally {
       setLoading(false)
     }
+  }, [user?.id])
+
+  useEffect(() => {
+    fetchTests()
+  }, [fetchTests])
+
+  // Error display component
+  const ErrorDisplay = () => {
+    if (!error) return null
+    return (
+      <div className="p-4 mb-4 bg-red-50 border-l-4 border-red-500 rounded">
+        <p className="text-red-700">{error}</p>
+      </div>
+    )
   }
 
   const filteredTests = tests.filter(test => {
@@ -106,6 +124,8 @@ export default function ExistingTests() {
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-3xl font-semibold text-gray-900">Your Tests</h2>
           <p className="mt-2 text-gray-500">Manage and review your created tests</p>
+          
+          <ErrorDisplay />
           
           {/* Search and Filter Section */}
           <div className="mt-6 flex flex-col sm:flex-row gap-4">
@@ -252,3 +272,5 @@ export default function ExistingTests() {
     </div>
   )
 }
+
+export default ExistingTests

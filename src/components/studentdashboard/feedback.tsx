@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect} from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../app/utils/supabase'
 import { useAuth } from '../../app/context/authcontext'
+import { PostgrestError } from '@supabase/supabase-js'
 
 // Define TypeScript interfaces for our data structures
 interface TeacherProfile {
@@ -17,15 +18,8 @@ interface FeedbackItem {
   feedback_text: string
   acknowledged: boolean
   created_at: string
-  teacher?: TeacherProfile // Optional teacher details
+  teacher?: TeacherProfile
 }
-
-type SupabaseError = {
-    message: string;
-    details?: string;
-    hint?: string;
-    code?: string;
-  }
 
 export default function StudentFeedback() {
   const { user } = useAuth()
@@ -34,66 +28,76 @@ export default function StudentFeedback() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (user?.id) {
-      fetchFeedback()
-    }
-  }, [user?.id])
+    const fetchFeedback = async () => {
+      if (!user?.id) {
+        setError('User not found')
+        setLoading(false)
+        return
+      }
 
-  const fetchFeedback = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+      try {
+        setLoading(true)
+        setError(null)
 
-      // First fetch the feedback
-      const { data: feedbackData, error: feedbackError } = await supabase
-        .from('feedback')
-        .select('*')
-        .eq('student_id', user?.id)
-        .order('created_at', { ascending: false })
+        // First fetch the feedback
+        const { data: feedbackData, error: feedbackError } = await supabase
+          .from('feedback')
+          .select('*')
+          .eq('student_id', user.id)
+          .order('created_at', { ascending: false })
 
-      if (feedbackError) throw feedbackError
+        if (feedbackError) throw feedbackError
 
-      // Then fetch teacher details for each feedback item
-      const teacherIds = [...new Set(feedbackData.map(f => f.teacher_id))]
-      const { data: teachersData, error: teachersError } = await supabase
-        .from('user_profiles')
-        .select('id, full_name, email')
-        .in('id', teacherIds)
+        // Then fetch teacher details for each feedback item
+        const teacherIds = [...new Set(feedbackData.map(f => f.teacher_id))]
+        const { data: teachersData, error: teachersError } = await supabase
+          .from('user_profiles')
+          .select('id, full_name, email')
+          .in('id', teacherIds)
 
-      if (teachersError) throw teachersError
+        if (teachersError) throw teachersError
 
-      // Create a map of teacher details for quick lookup
-      const teacherMap = new Map(teachersData.map(t => [t.id, t]))
+        // Create a map of teacher details for quick lookup
+        const teacherMap = new Map(teachersData.map(t => [t.id, t]))
 
-      // Combine feedback with teacher details
-      const enrichedFeedback = feedbackData.map(feedback => ({
-        ...feedback,
-        teacher: teacherMap.get(feedback.teacher_id)
-      }))
+        // Combine feedback with teacher details
+        const enrichedFeedback = feedbackData.map(feedback => ({
+          ...feedback,
+          teacher: teacherMap.get(feedback.teacher_id)
+        }))
 
-      setFeedback(enrichedFeedback)
-    } catch (err: SupabaseError) {
-        setError(err.message)
+        setFeedback(enrichedFeedback)
+      } catch (err) {
+        const error = err as PostgrestError
+        console.error('Error fetching feedback:', error)
+        setError(error.message || 'An error occurred while fetching feedback')
+      } finally {
+        setLoading(false)
       }
     }
 
+    fetchFeedback()
+  }, [user?.id]) // fetchFeedback is now defined inside useEffect
+
   const acknowledgeFeedback = async (feedbackId: number) => {
     try {
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('feedback')
         .update({ acknowledged: true })
         .eq('feedback_id', feedbackId)
 
-      if (error) throw error
+      if (updateError) throw updateError
 
       // Update local state
       setFeedback(prev => prev.map(f => 
         f.feedback_id === feedbackId ? { ...f, acknowledged: true } : f
       ))
-    }  catch (err: SupabaseError) {
-        setError(err.message)
-      }
+    } catch (err) {
+      const error = err as PostgrestError
+      console.error('Error acknowledging feedback:', error)
+      setError(error.message || 'An error occurred while acknowledging feedback')
     }
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {

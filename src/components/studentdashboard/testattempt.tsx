@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/app/context/authcontext'
 import { supabase } from '@/app/utils/supabase'
-import { ArrowLeft, ArrowRight, Search, BookOpen,CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Search, BookOpen, CheckCircle, XCircle } from 'lucide-react'
+import type { PostgrestError } from '@supabase/supabase-js'
 
 interface Question {
   id: string
@@ -35,13 +36,7 @@ interface TestAttempt {
   score?: number
 }
 
-type SupabaseError = {
-    message: string;
-    details?: string;
-    code?: string;
-   }
-
-export default function StudentTests() {
+const StudentTests: React.FC = () => {
   const { user } = useAuth()
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,13 +52,7 @@ export default function StudentTests() {
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    if (user?.id) {
-      fetchTestsAndAttempts()
-    }
-  }, [user])
-
-  const fetchTestsAndAttempts = async () => {
+  const fetchTestsAndAttempts = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -120,13 +109,20 @@ export default function StudentTests() {
       }
 
       setTests(testsWithQuestions)
-    } catch (err: any) {
-      console.error('Error fetching data:', err)
-      setError(err.message || 'Failed to load tests')
+    } catch (error) {
+      const pgError = error as PostgrestError
+      console.error('Error fetching data:', pgError)
+      setError(pgError.message || 'Failed to load tests')
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchTestsAndAttempts()
+    }
+  }, [user?.id, fetchTestsAndAttempts])
 
   const startTest = (test: Test) => {
     setActiveTest(test)
@@ -164,8 +160,9 @@ export default function StudentTests() {
       await fetchTestsAndAttempts()
       setActiveTest(null)
       setUserAnswers({})
-    } catch (err) {
-      console.error('Error submitting test:', err)
+    } catch (error) {
+      const pgError = error as PostgrestError
+      console.error('Error submitting test:', pgError)
       setError('Failed to submit test')
     } finally {
       setSubmitting(false)
@@ -248,7 +245,7 @@ export default function StudentTests() {
               {currentQuestionIndex === totalQuestions - 1 ? (
                 <button
                   onClick={submitTest}
-                  disabled={submitting}
+                  disabled={submitting || answeredQuestions < totalQuestions}
                   className={`px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
                     transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed
                     ${answeredQuestions < totalQuestions ? 'opacity-50' : ''}`}
@@ -378,51 +375,45 @@ export default function StudentTests() {
             )
           })}
 
-{filteredTests.length === 0 && (
+          {filteredTests.length === 0 && (
             <div className="p-6 text-center text-gray-500">
-              No tests found matching your criteria
+              <p>No tests found matching your criteria</p>
             </div>
           )}
         </div>
 
-        {/* Summary Section - Shows test statistics */}
+        {/* Summary Statistics Section */}
         <div className="p-6 bg-gray-50 border-t border-gray-200">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-lg shadow-sm">
-              <h4 className="text-sm font-medium text-gray-600">Total Tests</h4>
-              <p className="text-2xl font-semibold text-black mt-1">
-                {tests.length}
-              </p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow-sm">
-              <h4 className="text-sm font-medium text-gray-600">Tests Attempted</h4>
-              <p className="text-2xl font-semibold text-black mt-1">
-                {attempts.length}
-              </p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow-sm">
-              <h4 className="text-sm font-medium text-gray-600">Available Tests</h4>
-              <p className="text-2xl font-semibold text-black mt-1">
-                {tests.length - attempts.length}
-              </p>
-            </div>
+            <StatCard 
+              title="Total Tests" 
+              value={tests.length} 
+            />
+            <StatCard 
+              title="Tests Attempted" 
+              value={attempts.length} 
+            />
+            <StatCard 
+              title="Available Tests" 
+              value={tests.length - attempts.length} 
+            />
           </div>
         </div>
 
-        {/* Help Section */}
+        {/* Instructions Panel */}
         <div className="p-6 border-t border-gray-200">
           <h3 className="text-lg font-medium text-black mb-4">Test Instructions</h3>
           <div className="space-y-3 text-gray-600">
-            <p>• Click "Start Test" to begin a new test attempt</p>
-            <p>• Answer all questions to complete the test</p>
-            <p>• Use the Previous/Next buttons to navigate between questions</p>
-            <p>• Your answers are saved automatically as you progress</p>
-            <p>• Submit your test when you've answered all questions</p>
+            <InstructionItem text="Click &quot;Start Test&quot; to begin a new test attempt" />
+            <InstructionItem text="Answer all questions to complete the test" />
+            <InstructionItem text="Use the Previous/Next buttons to navigate between questions" />
+            <InstructionItem text="Your answers are saved automatically as you progress" />
+            <InstructionItem text="Submit your test when you&apos;ve answered all questions" />
           </div>
         </div>
       </div>
 
-      {/* Pagination or Load More - If needed in the future */}
+      {/* Pagination Section */}
       {tests.length > 10 && (
         <div className="mt-6 flex justify-center">
           <button 
@@ -436,3 +427,29 @@ export default function StudentTests() {
     </div>
   )
 }
+
+// Helper Components
+interface StatCardProps {
+  title: string
+  value: number
+}
+
+const StatCard: React.FC<StatCardProps> = ({ title, value }) => (
+  <div className="bg-white p-4 rounded-lg shadow-sm">
+    <h4 className="text-sm font-medium text-gray-600">{title}</h4>
+    <p className="text-2xl font-semibold text-black mt-1">{value}</p>
+  </div>
+)
+
+interface InstructionItemProps {
+  text: string
+}
+
+const InstructionItem: React.FC<InstructionItemProps> = ({ text }) => (
+  <p className="flex items-start">
+    <span className="mr-2">•</span>
+    {text}
+  </p>
+)
+
+export default StudentTests
