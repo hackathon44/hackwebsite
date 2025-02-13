@@ -116,7 +116,7 @@ export default function Quiz({ topic, level, onComplete, onClose }: QuizProps) {
       setShowResults(true)
       onComplete(score)
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error submitting quiz:', error)
       setError('Failed to submit quiz. Please try again.')
     } finally {

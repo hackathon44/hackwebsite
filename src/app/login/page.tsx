@@ -21,7 +21,7 @@ export default function LoginPage() {
     document.body.appendChild(script)
 
     script.onload = () => {
-      // @ts-ignore
+      // @ts-expect-error
       window.particlesJS('particles-js', {
         particles: {
           number: { value: 80 },
