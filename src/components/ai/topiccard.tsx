@@ -1,7 +1,5 @@
 'use client'
 
-import { useState as _useState } from 'react'
-
 interface TopicCardProps {
   topic: string
   currentLevel: string
