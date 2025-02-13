@@ -22,7 +22,11 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     const fetchStudentAnalytics = async () => {
-      if (!user?.id) return;
+      if (!user?.id) {
+        setErrorState('User not authenticated');
+        setLoading(false);
+        return;
+      }
 
       try {
         const { data: attempts, error: attemptsError } = await supabase
@@ -38,10 +42,16 @@ export default function StudentDashboard() {
 
         if (testsError) throw testsError;
 
+        if (!attempts || !tests) {
+          setErrorState('No data available');
+          setLoading(false);
+          return;
+        }
+
         const processedResults = new Map<string, ProcessedTestResult>();
         
-        attempts?.forEach(attempt => {
-          const test = tests?.find(t => t.id === attempt.test_id);
+        attempts.forEach(attempt => {
+          const test = tests.find(t => t.id === attempt.test_id);
           if (!test) return;
 
           if (!processedResults.has(attempt.test_id)) {
@@ -63,6 +73,7 @@ export default function StudentDashboard() {
         });
 
         setTestResults(Array.from(processedResults.values()));
+        setErrorState(null);
       } catch (err) {
         console.error('Error in fetchStudentAnalytics:', err);
         setErrorState('Failed to fetch analytics data');
@@ -74,6 +85,20 @@ export default function StudentDashboard() {
     fetchStudentAnalytics();
   }, [user?.id]);
 
+  // Early return for error state
+  if (errorState) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-white/30 backdrop-blur-sm rounded-xl">
+        <div className="text-center p-6 bg-white rounded-lg shadow-sm border border-red-100">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-red-600 mb-2">Error</h3>
+          <p className="text-gray-600">{errorState}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Rest of the component remains the same...
   const averageAccuracy = testResults.reduce((acc, curr) => acc + curr.accuracy_percentage, 0) / testResults.length;
   const sortedByPerformance = [...testResults].sort((a, b) => b.accuracy_percentage - a.accuracy_percentage);
   const strongSubjects = sortedByPerformance.filter(test => test.accuracy_percentage >= averageAccuracy);
