@@ -11,13 +11,7 @@ import { motion } from 'framer-motion'
 import StudentAnalytics from '../../components/studentdashboard/chart'
 import StudentFeedback from '../../components/studentdashboard/feedback';
 
-// Types for our analytics data
-interface TopicPerformance {
-  topic: string;
-  correctPercentage: number;
-  classAverage: number;
-  totalQuestions: number;
-}
+
 
 
 interface CardProps {
@@ -31,7 +25,7 @@ export default function StudentDashboard() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isDark, setIsDark] = useState(true)
-  const [progressStats, setProgressStats] = useState({
+  const [progressStats] = useState({
     testsCompleted: 0,
     averageScore: 0,
     topPerformance: '',

@@ -102,7 +102,7 @@ export default function LearningPage() {
     return badges[level]
   }
 
-  const handleQuizComplete = async (score: number) => {
+  const handleQuizComplete = async () => {
     if (!activeQuiz || !user) return
 
     try {

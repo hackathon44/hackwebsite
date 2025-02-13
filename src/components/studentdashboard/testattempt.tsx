@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/app/context/authcontext'
 import { supabase } from '@/app/utils/supabase'
-import { ArrowLeft, ArrowRight, Search, BookOpen, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Search, BookOpen,CheckCircle, XCircle } from 'lucide-react'
 
 interface Question {
   id: string
@@ -34,6 +34,12 @@ interface TestAttempt {
   attempted: boolean
   score?: number
 }
+
+type SupabaseError = {
+    message: string;
+    details?: string;
+    code?: string;
+   }
 
 export default function StudentTests() {
   const { user } = useAuth()

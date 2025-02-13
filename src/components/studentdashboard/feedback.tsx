@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect} from 'react'
 import { supabase } from '../../app/utils/supabase'
 import { useAuth } from '../../app/context/authcontext'
 
@@ -19,6 +19,13 @@ interface FeedbackItem {
   created_at: string
   teacher?: TeacherProfile // Optional teacher details
 }
+
+type SupabaseError = {
+    message: string;
+    details?: string;
+    hint?: string;
+    code?: string;
+  }
 
 export default function StudentFeedback() {
   const { user } = useAuth()
@@ -65,12 +72,10 @@ export default function StudentFeedback() {
       }))
 
       setFeedback(enrichedFeedback)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+    } catch (err: SupabaseError) {
+        setError(err.message)
+      }
     }
-  }
 
   const acknowledgeFeedback = async (feedbackId: number) => {
     try {
@@ -85,10 +90,10 @@ export default function StudentFeedback() {
       setFeedback(prev => prev.map(f => 
         f.feedback_id === feedbackId ? { ...f, acknowledged: true } : f
       ))
-    } catch (err: any) {
-      setError(err.message)
+    }  catch (err: SupabaseError) {
+        setError(err.message)
+      }
     }
-  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {

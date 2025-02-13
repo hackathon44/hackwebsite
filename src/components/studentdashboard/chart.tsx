@@ -3,22 +3,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../app/utils/supabase';
 import { useAuth } from '../../app/context/authcontext';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
 import { ArrowUp, ArrowDown, Brain, Target, TrendingUp, Book, AlertTriangle } from 'lucide-react';
 
-interface TestAttempt {
-  test_id: string;
-  marks_obtained: number;
-  attempt_time: string;
-  is_correct: boolean;
-  question_id: string;
-}
-
-interface Test {
-  id: string;
-  name: string;
-  total_marks: number;
-}
 
 interface ProcessedTestResult {
   test_name: string;
