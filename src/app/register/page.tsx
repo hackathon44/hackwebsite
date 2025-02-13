@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function RegisterPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -23,7 +22,7 @@ export default function RegisterPage() {
     document.body.appendChild(script)
 
     script.onload = () => {
-      // @ts-ignore
+      // @ts-expect-error - particlesJS is added to window by the particles.js library at runtime
       window.particlesJS('particles-js', {
         particles: {
           number: { value: 80 },

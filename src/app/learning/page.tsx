@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../context/authcontext'
 import { supabase } from '../utils/supabase'
 import {
@@ -13,6 +13,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts'
+import { PostgrestError } from '@supabase/supabase-js'
 
 interface TopicProgress {
   topic: string
@@ -35,11 +36,6 @@ interface QuestionData {
   topic: string
 }
 
-interface StudentAnswer {
-  question_id: string
-  is_correct: boolean
-}
-
 export default function LearningPage() {
   const { user } = useAuth()
   const [progress, setProgress] = useState<TopicProgress[]>([])
@@ -49,133 +45,125 @@ export default function LearningPage() {
 
   const topics = ['DSA', 'Fullstack', 'AI', 'Operating System']
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user?.id) {
-        setError('No user found')
-        setLoading(false)
-        return
-      }
+  const fetchData = useCallback(async () => {
+    if (!user?.id) {
+      setError('No user found')
+      setLoading(false)
+      return
+    }
 
-      try {
-        console.log('Fetching data for user:', user.id)
+    try {
+      console.log('Fetching data for user:', user.id)
 
-        // Fetch all questions to get their topics
-        const { data: questionsData, error: questionsError } = await supabase
-          .from('ai_questions')
-          .select('question_id, topic')
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('ai_questions')
+        .select('question_id, topic')
 
-        if (questionsError) throw questionsError
+      if (questionsError) throw questionsError
 
-        const questionMap = (questionsData || []).reduce((acc: Record<string, QuestionData>, question) => {
-          acc[question.question_id] = question
-          return acc
-        }, {})
+      const questionMap = (questionsData || []).reduce((acc: Record<string, QuestionData>, question) => {
+        acc[question.question_id] = question
+        return acc
+      }, {})
 
-        // Fetch student's answers
-        const { data: answersData, error: answersError } = await supabase
+      const { data: answersData, error: answersError } = await supabase
+        .from('student_answer')
+        .select('*')
+        .eq('student_id', user.id)
+
+      if (answersError) throw answersError
+
+      const { data: progressData, error: progressError } = await supabase
+        .from('student_progress')
+        .select('*')
+        .eq('student_id', user.id)
+
+      if (progressError) throw progressError
+
+      const topicStats = topics.reduce((acc, topic) => {
+        const topicAnswers = (answersData || []).filter(answer => 
+          questionMap[answer.question_id]?.topic === topic
+        )
+
+        const correctAnswers = topicAnswers.filter(answer => answer.is_correct).length
+        
+        const existingProgress = progressData?.find(p => p.topic === topic)
+
+        const score = topicAnswers.length > 0
+          ? (correctAnswers / topicAnswers.length) * 100
+          : existingProgress?.score || 0
+
+        acc[topic] = {
+          topic,
+          score,
+          totalAttempts: topicAnswers.length,
+          correctAnswers,
+          level: existingProgress?.level || 'Easy',
+          completed: existingProgress?.completed || false
+        }
+
+        return acc
+      }, {} as Record<string, TopicProgress>)
+
+      setProgress(Object.values(topicStats))
+
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .eq('role', 'student')
+
+      if (studentsError) throw studentsError
+
+      const leaderboardPromises = studentsData.map(async (student) => {
+        const { data: studentAnswers } = await supabase
           .from('student_answer')
           .select('*')
-          .eq('student_id', user.id)
+          .eq('student_id', student.id)
 
-        if (answersError) throw answersError
+        let totalScore = 0
+        let totalAttempts = 0
 
-        // Fetch current progress
-        const { data: progressData, error: progressError } = await supabase
-          .from('student_progress')
-          .select('*')
-          .eq('student_id', user.id)
-
-        if (progressError) throw progressError
-
-        // Calculate topic-wise progress
-        const topicStats = topics.reduce((acc, topic) => {
-          // Filter answers for this topic using the question map
-          const topicAnswers = (answersData || []).filter(answer => 
+        topics.forEach(topic => {
+          const topicAnswers = (studentAnswers || []).filter(answer => 
             questionMap[answer.question_id]?.topic === topic
           )
-
-          const correctAnswers = topicAnswers.filter(answer => answer.is_correct).length
           
-          // Find existing progress record for this topic
-          const existingProgress = progressData?.find(p => p.topic === topic)
-
-          // Calculate score based on answers or use existing progress score
-          const score = topicAnswers.length > 0
-            ? (correctAnswers / topicAnswers.length) * 100
-            : existingProgress?.score || 0
-
-          acc[topic] = {
-            topic,
-            score,
-            totalAttempts: topicAnswers.length,
-            correctAnswers,
-            level: existingProgress?.level || 'Easy',
-            completed: existingProgress?.completed || false
-          }
-
-          return acc
-        }, {} as Record<string, TopicProgress>)
-
-        setProgress(Object.values(topicStats))
-
-        // Fetch all students for leaderboard
-        const { data: studentsData, error: studentsError } = await supabase
-          .from('user_profiles')
-          .select('id, full_name')
-          .eq('role', 'student')
-
-        if (studentsError) throw studentsError
-
-        // Calculate leaderboard
-        const leaderboardPromises = studentsData.map(async (student) => {
-          const { data: studentAnswers } = await supabase
-            .from('student_answer')
-            .select('*')
-            .eq('student_id', student.id)
-
-          let totalScore = 0
-          let totalAttempts = 0
-
-          topics.forEach(topic => {
-            const topicAnswers = (studentAnswers || []).filter(answer => 
-              questionMap[answer.question_id]?.topic === topic
-            )
-            
-            if (topicAnswers.length > 0) {
-              const correctAnswers = topicAnswers.filter(answer => answer.is_correct).length
-              totalScore += (correctAnswers / topicAnswers.length) * 100
-              totalAttempts += 1
-            }
-          })
-
-          return {
-            student_id: student.id,
-            full_name: student.full_name,
-            average_score: totalAttempts > 0 ? totalScore / totalAttempts : 0
+          if (topicAnswers.length > 0) {
+            const correctAnswers = topicAnswers.filter(answer => answer.is_correct).length
+            totalScore += (correctAnswers / topicAnswers.length) * 100
+            totalAttempts += 1
           }
         })
 
-        const leaderboardResults = await Promise.all(leaderboardPromises)
-        const sortedLeaderboard = leaderboardResults
-          .sort((a, b) => b.average_score - a.average_score)
-          .map((entry, index) => ({
-            ...entry,
-            rank: index + 1
-          }))
+        return {
+          student_id: student.id,
+          full_name: student.full_name,
+          average_score: totalAttempts > 0 ? totalScore / totalAttempts : 0
+        }
+      })
 
-        setLeaderboard(sortedLeaderboard)
+      const leaderboardResults = await Promise.all(leaderboardPromises)
+      const sortedLeaderboard = leaderboardResults
+        .sort((a, b) => b.average_score - a.average_score)
+        .map((entry, index) => ({
+          ...entry,
+          rank: index + 1
+        }))
 
-      } catch (err: any) {
-        console.error('Error fetching data:', err)
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+      setLeaderboard(sortedLeaderboard)
+
+    } catch (err) {
+      const error = err as PostgrestError
+      console.error('Error fetching data:', error)
+      setError(error.message)
+    } finally {
+      setLoading(false)
     }
+  }, [user?.id, topics])
 
+  useEffect(() => {
     fetchData()
-  }, [user?.id])
+  }, [fetchData])
 
   if (loading) {
     return (

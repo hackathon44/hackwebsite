@@ -37,14 +37,6 @@ export default function StudentDashboard() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isDark, setIsDark] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
-  const [topicPerformance, setTopicPerformance] = useState<TopicPerformance[]>([])
-  const [progressStats, setProgressStats] = useState<ProgressStats>({
-    testsCompleted: 0,
-    averageScore: 0,
-    topPerformance: '',
-    improvementArea: ''
-  })
 
   // Enhanced navigation items with badges and descriptions
   const navItems = [
@@ -88,7 +80,7 @@ export default function StudentDashboard() {
     document.body.appendChild(script)
 
     script.onload = () => {
-        // @ts-expect-error
+       // @ts-expect-error - particlesJS is added to window by the particles.js library at runtime
       window.particlesJS('particles-js', {
         particles: {
           number: { value: 80 },
@@ -270,7 +262,7 @@ export default function StudentDashboard() {
                   Welcome back, {user?.full_name || 'Guest'}!
                 </h1>
                 <p className={`mt-2 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
-                  Your learning journey continues. You've completed {progressStats.testsCompleted} tests this week!
+                  Your learning journey continues Youve completed {progressStats.testsCompleted} tests this week!
                 </p>
               </div>
               <div className="hidden md:flex items-center space-x-4">
@@ -280,7 +272,7 @@ export default function StudentDashboard() {
                 </div>
                 <div className={`px-4 py-2 rounded-full ${bgClass} ${borderClass}`}>
                   <span className="text-sm font-medium">Average Score: </span>
-                  <span className="text-purple-500 font-bold">{progressStats.averageScore}%</span>
+                  <span className="text-sm font-medium">You&apos;ve completed {progressStats.testsCompleted} tests this week!</span>
                 </div>
               </div>
             </div>

@@ -21,7 +21,7 @@ export default function LoginPage() {
     document.body.appendChild(script)
 
     script.onload = () => {
-      // @ts-expect-error
+      // @ts-expect-error - particlesJS is added to window by the particles.js library at runtime
       window.particlesJS('particles-js', {
         particles: {
           number: { value: 80 },
