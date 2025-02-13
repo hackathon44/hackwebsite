@@ -1,4 +1,3 @@
-// app/login/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -12,10 +11,44 @@ export default function LoginPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    role: ''
   })
 
-  // Handle input changes in the form
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js'
+    script.async = true
+    document.body.appendChild(script)
+
+    script.onload = () => {
+      // @ts-ignore
+      window.particlesJS('particles-js', {
+        particles: {
+          number: { value: 80 },
+          color: { value: '#9333ea' },
+          opacity: { value: 0.5 },
+          size: { value: 3 },
+          line_linked: {
+            enable: true,
+            distance: 150,
+            color: '#9333ea',
+            opacity: 0.2,
+            width: 1
+          },
+          move: {
+            enable: true,
+            speed: 2
+          }
+        }
+      })
+    }
+
+    return () => {
+      document.body.removeChild(script)
+    }
+  }, [])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
@@ -29,7 +62,6 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      // Step 1: Authenticate the user with Supabase
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
@@ -38,7 +70,6 @@ export default function LoginPage() {
       if (authError) throw authError
 
       if (authData.user) {
-        // Step 2: Fetch the user's profile to get their role
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
           .select('role')
@@ -47,7 +78,10 @@ export default function LoginPage() {
 
         if (profileError) throw profileError
 
-        // Step 3: Redirect based on user role
+        if (profileData.role !== formData.role) {
+          throw new Error('Invalid role selected for this account')
+        }
+
         switch (profileData.role) {
           case 'student':
             router.push('/studentdashboard')
@@ -70,26 +104,54 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+    <div className="min-h-screen bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      <div id="particles-js" className="fixed inset-0 pointer-events-none" />
+      
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600 animate-pulse">
           Sign in to your account
         </h2>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="bg-black/30 backdrop-blur-md py-8 px-4 shadow-[0_0_15px_rgba(147,51,234,0.3)] border border-purple-500/30 sm:rounded-lg sm:px-10 transform transition-all duration-700 hover:shadow-[0_0_30px_rgba(147,51,234,0.5)] hover:border-purple-500/50 hover:-translate-y-1">
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Display any error messages */}
             {error && (
-              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+              <div className="bg-red-900/30 border border-red-500/50 text-red-300 px-4 py-3 rounded relative backdrop-blur-md transform transition-all duration-700 hover:bg-red-900/40 hover:border-red-500/70">
                 <span className="block sm:inline">{error}</span>
               </div>
             )}
 
-            {/* Email input field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            {/* Role Selection */}
+            <div className="group">
+              <label htmlFor="role" className="block text-sm font-medium text-purple-300 transition-colors duration-700">
+                Sign in as
+              </label>
+              <div className="mt-1 relative">
+                <select
+                  id="role"
+                  name="role"
+                  required
+                  className="appearance-none block w-full px-3 py-2 border border-purple-500/30 rounded-md shadow-sm bg-black/30 text-purple-200 placeholder-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 backdrop-blur-md transition-all duration-700 hover:border-purple-500/70 hover:shadow-[0_0_10px_rgba(147,51,234,0.3)]"
+                  value={formData.role}
+                  onChange={handleChange}
+                >
+                  <option value="" className="bg-black">Select role</option>
+                  <option value="student" className="bg-black">Student</option>
+                  <option value="teacher" className="bg-black">Teacher</option>
+                  <option value="parent" className="bg-black">Parent</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                  <svg className="h-4 w-4 text-purple-400" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                    <path d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Email input */}
+            <div className="group">
+              <label htmlFor="email" className="block text-sm font-medium text-purple-300 transition-colors duration-700">
                 Email address
               </label>
               <div className="mt-1">
@@ -99,16 +161,16 @@ export default function LoginPage() {
                   type="email"
                   autoComplete="email"
                   required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="appearance-none block w-full px-3 py-2 border border-purple-500/30 rounded-md shadow-sm bg-black/30 text-purple-200 placeholder-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 backdrop-blur-md transition-all duration-700 hover:border-purple-500/70 hover:shadow-[0_0_10px_rgba(147,51,234,0.3)]"
                   value={formData.email}
                   onChange={handleChange}
                 />
               </div>
             </div>
 
-            {/* Password input field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            {/* Password input */}
+            <div className="group">
+              <label htmlFor="password" className="block text-sm font-medium text-purple-300 transition-colors duration-700">
                 Password
               </label>
               <div className="mt-1">
@@ -118,7 +180,7 @@ export default function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="appearance-none block w-full px-3 py-2 border border-purple-500/50 rounded-md shadow-sm bg-black/50 text-purple-200 placeholder-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 backdrop-blur-md transition-all duration-700 hover:border-purple-500/70 hover:shadow-[0_0_10px_rgba(147,51,234,0.3)]"
                   value={formData.password}
                   onChange={handleChange}
                 />
@@ -130,11 +192,26 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 transition-all duration-700 shadow-[0_0_15px_rgba(147,51,234,0.5)] hover:shadow-[0_0_25px_rgba(147,51,234,0.7)] transform hover:-translate-y-0.5"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                <span className="relative">
+                  {loading ? 'Signing in...' : 'Sign in'}
+                </span>
               </button>
             </div>
+
+{/* No account? Sign up */}
+<div className="mt-4 text-center">
+  <p className="text-sm text-purple-300">
+    No account?{' '}
+    <a
+      href="/register"
+      className="font-medium text-purple-400 hover:text-purple-500 transition-colors duration-300"
+    >
+      Sign up
+    </a>
+  </p>
+</div>
           </form>
         </div>
       </div>
