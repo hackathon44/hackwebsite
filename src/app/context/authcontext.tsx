@@ -37,6 +37,9 @@ interface AuthState {
   error: AuthError | null
 }
 
+
+
+
 // Define the shape of our auth context with complete typing
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>

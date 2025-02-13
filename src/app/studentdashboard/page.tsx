@@ -26,6 +26,12 @@ interface ProgressStats {
   improvementArea: string;
 }
 
+interface CardProps {
+    children: React.ReactNode;
+    className?: string;
+  }
+
+
 export default function StudentDashboard() {
   const { user, loading, signOut } = useAuth()
   const router = useRouter()
@@ -82,6 +88,7 @@ export default function StudentDashboard() {
     document.body.appendChild(script)
 
     script.onload = () => {
+        // @ts-expect-error
       window.particlesJS('particles-js', {
         particles: {
           number: { value: 80 },
@@ -150,7 +157,7 @@ export default function StudentDashboard() {
   const borderClass = isDark ? 'border-purple-500/30' : 'border-purple-300/30'
 
   // Card component for reusability
-  const Card = ({ children, className = '' }) => (
+  const Card = ({ children, className = '' }: CardProps) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -207,8 +214,8 @@ export default function StudentDashboard() {
               {/* User Profile */}
               <div className="flex items-center space-x-4">
                 <div className="text-right">
-                  <p className={`font-bold ${textClass}`}>{user.full_name}</p>
-                  <p className={isDark ? 'text-purple-400/80' : 'text-purple-500/80'}>{user.email}</p>
+                  <p className={`font-bold ${textClass}`}>{user?.full_name || 'Guest'}</p>
+                  <p className={isDark ? 'text-purple-400/80' : 'text-purple-500/80'}>{user?.email || ''}</p>
                 </div>
                 <button
                   onClick={signOut}
@@ -260,7 +267,7 @@ export default function StudentDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
-                  Welcome back, {user.full_name}!
+                  Welcome back, {user?.full_name || 'Guest'}!
                 </h1>
                 <p className={`mt-2 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
                   Your learning journey continues. You've completed {progressStats.testsCompleted} tests this week!
