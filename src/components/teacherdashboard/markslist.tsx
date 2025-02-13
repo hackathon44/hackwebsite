@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../app/utils/supabase'
 import { useAuth } from '../../app/context/authcontext'
 import type { PostgrestError } from '@supabase/supabase-js'
@@ -69,7 +69,7 @@ interface StudentAnalytics {
   averageScore: number
 }
 
-const StudentPerformanceAnalytics: React.FC = () => {
+export const StudentPerformanceAnalytics: React.FC = () => {
   const { user } = useAuth()
   const [students, setStudents] = useState<UserProfile[]>([])
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
@@ -80,7 +80,7 @@ const StudentPerformanceAnalytics: React.FC = () => {
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
 
   // Helper function to handle errors
-  const handleError = (error: AppError): string => {
+  const handleError = useCallback((error: AppError): string => {
     switch (error.type) {
       case 'database':
         return `Database error: ${error.error.message}`
@@ -90,19 +90,10 @@ const StudentPerformanceAnalytics: React.FC = () => {
       default:
         return 'An unexpected error occurred'
     }
-  }
-
-  useEffect(() => {
-    fetchStudents()
   }, [])
 
-  useEffect(() => {
-    if (selectedStudent) {
-      fetchAnalytics(selectedStudent)
-    }
-  }, [selectedStudent])
-
-  const fetchStudents = async () => {
+  // Memoize fetchStudents to avoid unnecessary recreations
+  const fetchStudents = useCallback(async () => {
     try {
       const { data, error: dbError } = await supabase
         .from('user_profiles')
@@ -119,9 +110,10 @@ const StudentPerformanceAnalytics: React.FC = () => {
       const appError = error as AppError
       setError(handleError(appError))
     }
-  }
+  }, [handleError])
 
-  const fetchAnalytics = async (studentId: string) => {
+  // Memoize fetchAnalytics to avoid unnecessary recreations
+  const fetchAnalytics = useCallback(async (studentId: string) => {
     try {
       setLoading(true)
       setError(null)
@@ -239,9 +231,10 @@ const StudentPerformanceAnalytics: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [handleError])
 
-  const submitFeedback = async () => {
+  // Submit feedback function
+  const submitFeedback = useCallback(async () => {
     if (!selectedStudent || !user?.id || !feedback.trim()) {
       throw { type: 'validation', message: 'Invalid feedback submission data' } as AppError
     }
@@ -269,7 +262,19 @@ const StudentPerformanceAnalytics: React.FC = () => {
     } finally {
       setSubmittingFeedback(false)
     }
-  }
+  }, [selectedStudent, user?.id, feedback, handleError])
+
+  // Effect to fetch students on mount
+  useEffect(() => {
+    fetchStudents()
+  }, [fetchStudents])
+
+  // Effect to fetch analytics when student is selected
+  useEffect(() => {
+    if (selectedStudent) {
+      fetchAnalytics(selectedStudent)
+    }
+  }, [selectedStudent, fetchAnalytics])
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -369,12 +374,6 @@ const StudentPerformanceAnalytics: React.FC = () => {
                           <span className="text-gray-600">Score</span>
                           <span className="font-medium">
                             {test.marksObtained}/{test.totalMarks}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Percentage</span>
-                          <span className="font-medium">
-                            {((test.marksObtained / test.totalMarks) * 100).toFixed(1)}%
                           </span>
                         </div>
                         <div className="flex justify-between items-center">

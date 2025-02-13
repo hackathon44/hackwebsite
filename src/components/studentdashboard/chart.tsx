@@ -3,22 +3,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../app/utils/supabase';
 import { useAuth } from '../../app/context/authcontext';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
 import { ArrowUp, ArrowDown, Brain, Target, TrendingUp, Book, AlertTriangle } from 'lucide-react';
-
-interface TestAttempt {
-  test_id: string;
-  marks_obtained: number;
-  attempt_time: string;
-  is_correct: boolean;
-  question_id: string;
-}
-
-interface Test {
-  id: string;
-  name: string;
-  total_marks: number;
-}
 
 interface ProcessedTestResult {
   test_name: string;
@@ -32,7 +18,7 @@ export default function StudentDashboard() {
   const { user } = useAuth();
   const [testResults, setTestResults] = useState<ProcessedTestResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchStudentAnalytics = async () => {
@@ -77,9 +63,9 @@ export default function StudentDashboard() {
         });
 
         setTestResults(Array.from(processedResults.values()));
-      } catch (error) {
-        console.error('Error in fetchStudentAnalytics:', error);
-        setError('Failed to fetch analytics data');
+      } catch (err) {
+        console.error('Error in fetchStudentAnalytics:', err);
+        setErrorState('Failed to fetch analytics data');
       } finally {
         setLoading(false);
       }
@@ -103,7 +89,6 @@ export default function StudentDashboard() {
 
   return (
     <div className="w-full space-y-8 p-8 bg-gray-50">
-      {/* Performance Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center justify-between">
