@@ -72,6 +72,7 @@ export default function Home() {
     document.body.appendChild(script)
 
     script.onload = () => {
+      // @ts-expect-error
       window.particlesJS('particles-js', {
         particles: {
           number: { value: 80 },
