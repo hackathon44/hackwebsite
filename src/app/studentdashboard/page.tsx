@@ -11,20 +11,6 @@ import { motion } from 'framer-motion'
 import StudentAnalytics from '../../components/studentdashboard/chart'
 import StudentFeedback from '../../components/studentdashboard/feedback';
 
-// Types for our analytics data
-interface TopicPerformance {
-  topic: string;
-  correctPercentage: number;
-  classAverage: number;
-  totalQuestions: number;
-}
-
-interface ProgressStats {
-  testsCompleted: number;
-  averageScore: number;
-  topPerformance: string;
-  improvementArea: string;
-}
 
 interface CardProps {
     children: React.ReactNode;
@@ -262,7 +248,7 @@ export default function StudentDashboard() {
                   Welcome back, {user?.full_name || 'Guest'}!
                 </h1>
                 <p className={`mt-2 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
-                  Your learning journey continues Youve completed {progressStats.testsCompleted} tests this week!
+                  Your learning journey continues Youve completed {ProgressStats.testsCompleted} tests this week!
                 </p>
               </div>
               <div className="hidden md:flex items-center space-x-4">
@@ -272,7 +258,7 @@ export default function StudentDashboard() {
                 </div>
                 <div className={`px-4 py-2 rounded-full ${bgClass} ${borderClass}`}>
                   <span className="text-sm font-medium">Average Score: </span>
-                  <span className="text-sm font-medium">You&apos;ve completed {progressStats.testsCompleted} tests this week!</span>
+                  <span className="text-sm font-medium">You&apos;ve completed {ProgressStats.testsCompleted} tests this week!</span>
                 </div>
               </div>
             </div>
