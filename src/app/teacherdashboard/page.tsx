@@ -7,7 +7,7 @@ import TeacherNavbar from '../../components/teacherdashboard/navbar'
 import ContentGenerator from '../../components/pdf_generator'
 import { supabase } from '../utils/supabase'
 import ExistingTests from '../../components/teacherdashboard/testshow'
-import StudentPerformanceAnalytics from '../../components/teacherdashboard/markslist'
+import { StudentPerformanceAnalytics } from '../../components/teacherdashboard/markslist'
 
 // Define interfaces for our form data
 interface QuestionForm {
